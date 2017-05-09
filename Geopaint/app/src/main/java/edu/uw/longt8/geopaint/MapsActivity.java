@@ -15,6 +15,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -27,6 +28,13 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static edu.uw.longt8.geopaint.R.id.pen;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener {
 
@@ -35,11 +43,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private GoogleApiClient mGoogleApiClient;
     private ShareActionProvider mShareActionProvider;
     private static final int LOCATION_REQUEST_CODE = 0;
+    private boolean penDown;
+    private Polyline mPolyline;
+    List<Polyline> lineShape;
+    private int drawingColor;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
+
+        penDown = false;
+        drawingColor = -1;
+        lineShape = new ArrayList<Polyline>();
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -105,9 +121,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public boolean onOptionsItemSelected(MenuItem item) {
         // Handle item selection
         switch (item.getItemId()) {
-            case R.id.pen:
+            case pen:
                 Log.v(TAG, "Select Pen");
-//                changePenStatus(item);
+                TogglePen(item);
                 return true;
             case R.id.picker:
                 Log.v(TAG, "Select Picker");
@@ -127,6 +143,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 return super.onOptionsItemSelected(item);
         }
     }
+
+    //Change the state of the pen, allow user to either draw or not draw on the map
+    public void TogglePen(MenuItem item){
+        if(penDown){ // if the current pen is down, the click will make the pen up
+            item.setIcon(R.drawable.ic_pen_up);
+            Toast.makeText(this, "Drawing Stopped", Toast.LENGTH_SHORT).show();
+            mPolyline = null; //reset the current polyline
+        }else{ // the click will make the pen down
+            item.setIcon(R.drawable.ic_pen_down);
+            Toast.makeText(this, "Start Drawing", Toast.LENGTH_SHORT).show();
+        }
+        penDown = !penDown; //toggle the pen
+}
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
@@ -170,6 +199,22 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onLocationChanged(Location location) {
+        Log.v(TAG, "Location Changed");
+        if(penDown){ //if the pen is down
+            LatLng newPoint = new LatLng(location.getLatitude(), location.getLongitude()); //get the current lat/lng
 
+            //initiate polyline with the defined color
+            if(mPolyline == null){
+                PolylineOptions lines = new PolylineOptions().color(drawingColor);
+                mPolyline = mMap.addPolyline(lines);
+                lineShape.add(mPolyline); //store the drawn lines
+            }
+
+            //add points to the current line
+            List<LatLng> points = mPolyline.getPoints();
+            points.add(newPoint);
+            mPolyline.setPoints(points);
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(newPoint, 17));
+        }
     }
 }
