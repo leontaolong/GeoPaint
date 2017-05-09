@@ -1,6 +1,8 @@
 package edu.uw.longt8.geopaint;
 
 import android.Manifest;
+import android.app.Activity;
+import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
@@ -17,6 +19,10 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.widget.Toast;
 
+import com.flask.colorpicker.ColorPickerView;
+import com.flask.colorpicker.OnColorSelectedListener;
+import com.flask.colorpicker.builder.ColorPickerClickListener;
+import com.flask.colorpicker.builder.ColorPickerDialogBuilder;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
@@ -123,11 +129,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         switch (item.getItemId()) {
             case pen:
                 Log.v(TAG, "Select Pen");
-                TogglePen(item);
+                togglePen(item);
                 return true;
             case R.id.picker:
                 Log.v(TAG, "Select Picker");
-//                showColorPicker();
+                setDrawingColor();
                 return true;
             case R.id.save:
                 Log.v(TAG, "Select Save");
@@ -144,8 +150,40 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+    public void setDrawingColor() {
+        final Activity thisActivity = this;
+        ColorPickerDialogBuilder
+                .with(this)
+                .setTitle("Choose color")
+                .initialColor(-1)
+                .wheelType(ColorPickerView.WHEEL_TYPE.FLOWER)
+                .density(10)
+                .setOnColorSelectedListener(new OnColorSelectedListener() {
+                    @Override
+                    public void onColorSelected(int selectedColor) {
+                        Toast.makeText(thisActivity, "Color Selected: 0x" + Integer.toHexString(selectedColor), Toast.LENGTH_SHORT).show();
+                        Log.v(TAG, "onColorSelected: 0x" + Integer.toHexString(selectedColor));
+                    }
+                })
+                .setPositiveButton("ok", new ColorPickerClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int selectedColor, Integer[] allColors) {
+                        drawingColor = selectedColor;
+                        Log.v(TAG, "drawingColor set to: 0x" + Integer.toHexString(selectedColor));
+                    }
+                })
+                .setNegativeButton("cancel", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                    }
+                })
+                .build()
+                .show();
+
+    }
+
     //Change the state of the pen, allow user to either draw or not draw on the map
-    public void TogglePen(MenuItem item){
+    public void togglePen(MenuItem item){
         if(penDown){ // if the current pen is down, the click will make the pen up
             item.setIcon(R.drawable.ic_pen_up);
             Toast.makeText(this, "Drawing Stopped", Toast.LENGTH_SHORT).show();
@@ -202,14 +240,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         Log.v(TAG, "Location Changed");
         if(penDown){ //if the pen is down
             LatLng newPoint = new LatLng(location.getLatitude(), location.getLongitude()); //get the current lat/lng
-
-            //initiate polyline with the defined color
+            // initialize the mPolyline at the first place
             if(mPolyline == null){
                 PolylineOptions lines = new PolylineOptions().color(drawingColor);
                 mPolyline = mMap.addPolyline(lines);
                 lineShape.add(mPolyline); //store the drawn lines
             }
-
             //add points to the current line
             List<LatLng> points = mPolyline.getPoints();
             points.add(newPoint);

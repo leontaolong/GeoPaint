@@ -27,5 +27,15 @@ dependencies {
     compile 'com.android.support:appcompat-v7:25.3.1'
     compile 'com.google.android.gms:play-services-maps:10.2.1'
     compile 'com.google.android.gms:play-services-location:10.2.1'
+    // ColorPicker By com.github.QuadFlask:colorpicker:0.0.13
+    // Copyright 2014-2017 QuadFlask
+    // https://play.google.com/store/apps/details?id=com.flask.colorpicker.sample&utm_source=android-arsenal.com&utm_medium=referral&utm_campaign=1693
+    compile 'com.github.QuadFlask:colorpicker:0.0.13'
     testCompile 'junit:junit:4.12'
+}
+
+allprojects {
+    repositories {
+        maven { url "https://jitpack.io" }
+    }
 }
