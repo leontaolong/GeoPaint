@@ -1,7 +1,6 @@
 package edu.uw.longt8.geopaint;
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -14,12 +13,14 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.MenuItemCompat;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.ShareActionProvider;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.widget.EditText;
 import android.widget.Toast;
 
 import com.flask.colorpicker.ColorPickerView;
@@ -54,10 +55,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private GoogleApiClient mGoogleApiClient;
     private ShareActionProvider mShareActionProvider;
     private static final int LOCATION_REQUEST_CODE = 0;
+    private static final String DEFAULT_FILE_NAME = "drawing.geojson";
     private boolean penDown;
     private Polyline mPolyline;
     List<Polyline> lineShape;
     private int drawingColor;
+    private String fileName;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,6 +70,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         penDown = false;
         drawingColor = -1;
         lineShape = new ArrayList<Polyline>();
+        fileName = DEFAULT_FILE_NAME;
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -158,7 +162,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         Uri fileUri;
 
         File dir = this.getExternalFilesDir(null);
-        File file = new File(dir, "drawing.geojson");
+        File file = new File(dir, fileName);
 
         fileUri = Uri.fromFile(file);
         Log.v(TAG, "File is at: " + fileUri);
@@ -168,15 +172,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         shareIntent.setType("text/plain"); //set the type of intent
         shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
 
-        Toast.makeText(this,
-                "Sharing File",
-                Toast.LENGTH_SHORT).show();
-
         mShareActionProvider.setShareIntent(shareIntent);
     }
 
     public void setDrawingColor() {
-        final Activity thisActivity = this;
         ColorPickerDialogBuilder
                 .with(this)
                 .setTitle("Choose color")
@@ -186,15 +185,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .setOnColorSelectedListener(new OnColorSelectedListener() {
                     @Override
                     public void onColorSelected(int selectedColor) {
-                        Toast.makeText(thisActivity, "Color Selected: 0x" + Integer.toHexString(selectedColor), Toast.LENGTH_SHORT).show();
-                        Log.v(TAG, "onColorSelected: 0x" + Integer.toHexString(selectedColor));
+                        Toast.makeText(MapsActivity.this, "Color Selected: 0x" + Integer.toHexString(selectedColor), Toast.LENGTH_SHORT).show();
+                        Log.v(TAG, "onColorSelected: " + Integer.toHexString(selectedColor));
                     }
                 })
                 .setPositiveButton("ok", new ColorPickerClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int selectedColor, Integer[] allColors) {
                         drawingColor = selectedColor;
-                        Log.v(TAG, "drawingColor set to: 0x" + Integer.toHexString(selectedColor));
+                        Log.v(TAG, "drawingColor set to: " + Integer.toHexString(selectedColor));
                     }
                 })
                 .setNegativeButton("cancel", new DialogInterface.OnClickListener() {
@@ -210,28 +209,40 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void saveDrawing(){
         Log.v(TAG, "Saving the drawing");
 
-        if (penDown == true) {
+        if (penDown) {
             lineShape.add(mPolyline);
         }
-
-        //check if the external storage is accessible
-        if(isExternalStorageWritable()){
-            try {
-                File file = new File(this.getExternalFilesDir(null), "drawing.geojson");
-                FileOutputStream outputStream = new FileOutputStream(file);
-                GeoJsonConverter geoJsonConverter = new GeoJsonConverter();
-                String geoJsonString = geoJsonConverter.convertToGeoJson(lineShape);
-                outputStream.write(geoJsonString.getBytes());
-                Log.v(TAG, "Geo JSON String: " + geoJsonString);
-                outputStream.close();
-                Log.v(TAG, "Drawing Saved");
-                Toast.makeText(this,
-                        "Drawing Saved",
-                        Toast.LENGTH_SHORT).show();
-            } catch (IOException ioe) {
-                ioe.printStackTrace();
+        final EditText field = new EditText(this);
+        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage("File Name")
+                .setTitle("Name the File")
+                .setView(field)
+        .setPositiveButton("Save", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                fileName = field.getText().toString() + ".geojson";
+                Log.v(TAG, "File Name: " + fileName);
+                //check if the external storage is accessible
+                if(isExternalStorageWritable()){
+                    try {
+                        File file = new File(MapsActivity.this.getExternalFilesDir(null), fileName);
+                        FileOutputStream outputStream = new FileOutputStream(file);
+                        GeoJsonConverter geoJsonConverter = new GeoJsonConverter();
+                        String geoJsonString = geoJsonConverter.convertToGeoJson(lineShape);
+                        outputStream.write(geoJsonString.getBytes());
+                        Log.v(TAG, "Geo JSON String: " + geoJsonString);
+                        outputStream.close();
+                        Log.v(TAG, "Drawing Saved");
+                        Toast.makeText(MapsActivity.this,
+                                "Drawing Saved",
+                                Toast.LENGTH_SHORT).show();
+                    } catch (IOException ioe) {
+                        ioe.printStackTrace();
+                    }
+                }
             }
-        }
+        });
+        builder.create().show();
     }
 
     // Checks if the external storage is writable
@@ -246,14 +257,25 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     //Change the state of the pen, allow user to either draw or not draw on the map
     public void togglePen(MenuItem item){
         if(penDown){ // if the current pen is down, the click will make the pen up
+            penDown = false;
             item.setIcon(R.drawable.ic_pen_up);
             Toast.makeText(this, "Drawing Stopped", Toast.LENGTH_SHORT).show();
+            lineShape.add(mPolyline);
             mPolyline = null; //reset the current polyline
         }else{ // the click will make the pen down
-            item.setIcon(R.drawable.ic_pen_down);
-            Toast.makeText(this, "Start Drawing", Toast.LENGTH_SHORT).show();
+            penDown = true;
+            // Runtime permission check
+            int permissionCheck = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION);
+            if(permissionCheck == PackageManager.PERMISSION_GRANTED) {
+                Location currentLoc = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+                LatLng newPoint = new LatLng(currentLoc.getLatitude(), currentLoc.getLongitude()); //get the current lat/lng
+                draw(newPoint);
+                item.setIcon(R.drawable.ic_pen_down);
+                Toast.makeText(this, "Start Drawing", Toast.LENGTH_SHORT).show();
+            } else {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_REQUEST_CODE);
+            }
         }
-        penDown = !penDown; //toggle the pen
     }
 
     @Override
@@ -266,6 +288,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         //Runtime permission check
         int permissionCheck = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION);
         if(permissionCheck == PackageManager.PERMISSION_GRANTED){
+            mMap.setMyLocationEnabled(true);
+            Location currentLoc = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+            if (currentLoc != null) {
+                mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(currentLoc.getLatitude(), currentLoc.getLongitude())));
+            }
+
             LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, request, this);
         }else{
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_REQUEST_CODE);
@@ -299,20 +327,22 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public void onLocationChanged(Location location) {
         Log.v(TAG, "Location Changed");
+        LatLng newPoint = new LatLng(location.getLatitude(), location.getLongitude()); //get the current lat/lng
+        draw(newPoint);
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(newPoint));
+    }
+
+    public void draw(LatLng newPoint) {
         if(penDown){ //if the pen is down
-            LatLng newPoint = new LatLng(location.getLatitude(), location.getLongitude()); //get the current lat/lng
             // initialize the mPolyline at the first place
             if(mPolyline == null){
-                PolylineOptions lines = new PolylineOptions().color(drawingColor);
-                mPolyline = mMap.addPolyline(lines);
-                lineShape.add(mPolyline); //store the drawn lines
+                mPolyline = mMap.addPolyline(new PolylineOptions().color(drawingColor));
             }
             //add points to the current line
             List<LatLng> points = mPolyline.getPoints();
             points.add(newPoint);
             mPolyline.setPoints(points);
             mPolyline.setColor(drawingColor);
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(newPoint, 17));
         }
     }
 }
