@@ -71,7 +71,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     List<Polyline> lineShape;
     private int drawingColor;
     private String fileName;
-    private SharedPreferences sharedPref;
+    private SharedPreferengit ces sharedPref;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
