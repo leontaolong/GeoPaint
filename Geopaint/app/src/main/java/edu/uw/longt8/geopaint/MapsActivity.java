@@ -8,6 +8,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.support.annotation.NonNull;
@@ -42,9 +43,15 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 
+import org.json.JSONException;
+
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -100,15 +107,66 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onStart() {
         super.onStart();
         mGoogleApiClient.connect();
+        File file = new File(MapsActivity.this.getExternalFilesDir(null), fileName);
+        //Read text from file
+        String geoJson = "";
+        try {
+            InputStream is = new FileInputStream(file);
+            BufferedReader buf = new BufferedReader(new InputStreamReader(is));
+            String line = buf.readLine();
+            StringBuilder sb = new StringBuilder();
+            while(line != null){ sb.append(line).append("\n");
+                line = buf.readLine(); }
+            geoJson = sb.toString();
+        }
+        catch (IOException e) {
+            Log.e(TAG, e.toString());
+        }
+        try {
+            if (geoJson != null) {
+                List<PolylineOptions> lines = GeoJsonConverter.convertFromGeoJson(geoJson);
+                Log.v(TAG, lines.toString());
+//            for (PolylineOptions line : lines) {
+//                mMap.addPolyline(line);
+//            }
+            }
+        } catch (JSONException e) {
+            Log.e(TAG, e.toString());
+        }
     }
 
     @Override
     protected void onStop() {
-        mGoogleApiClient.connect();
+        mGoogleApiClient.disconnect();
+        lineShape.add(mPolyline);
+        String geoJsonString = GeoJsonConverter.convertToGeoJson(lineShape);
+        new SaveState().execute(geoJsonString);
         super.onStop();
     }
 
+    private class SaveState extends AsyncTask<String, Void, String> {
 
+        @Override
+        protected String doInBackground(String... params) {
+            if(isExternalStorageWritable()){
+                try {
+                    File file = new File(MapsActivity.this.getExternalFilesDir(null), fileName);
+                    FileOutputStream outputStream = new FileOutputStream(file);
+                    outputStream.write(params[0].getBytes());
+                    Log.v(TAG, "Geo JSON String: " + params[0]);
+                    outputStream.close();
+                    Log.v(TAG, "Drawing Saved");
+                } catch (IOException ioe) {
+                    ioe.printStackTrace();
+                }
+            }
+            return "executed";
+        }
+
+        @Override
+        protected void onPostExecute(String result) {
+        }
+    }
 
     /**
      * Manipulates the map once available.
@@ -132,6 +190,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public boolean onCreateOptionsMenu(Menu menu) {
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.menu, menu);
+        if (penDown) {
+            menu.getItem(0).setIcon(R.drawable.ic_pen_down);
+        }
+        else {
+            menu.getItem(0).setIcon(R.drawable.ic_pen_up);
+        }
         return true;
     }
 
@@ -242,7 +306,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             public void onClick(DialogInterface dialog, int which) {
                 fileName = field.getText().toString() + ".geojson";
                 Log.v(TAG, "File Name: " + fileName);
-                //check if the external storage is accessible
                 if(isExternalStorageWritable()){
                     try {
                         File file = new File(MapsActivity.this.getExternalFilesDir(null), fileName);
@@ -252,13 +315,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         outputStream.write(geoJsonString.getBytes());
                         Log.v(TAG, "Geo JSON String: " + geoJsonString);
                         outputStream.close();
-                        Log.v(TAG, "Drawing Saved");
-                        Toast.makeText(MapsActivity.this,
-                                "Drawing Saved",
-                                Toast.LENGTH_SHORT).show();
                     } catch (IOException ioe) {
                         ioe.printStackTrace();
                     }
+                    Log.v(TAG, "Drawing Saved");
+                    Toast.makeText(MapsActivity.this,
+                            "Drawing Saved",
+                            Toast.LENGTH_SHORT).show();
                 }
             }
         });
