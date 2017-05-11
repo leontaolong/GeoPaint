@@ -3,9 +3,12 @@ package edu.uw.longt8.geopaint;
 import android.Manifest;
 import android.app.Activity;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
@@ -33,10 +36,12 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -82,8 +87,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     protected void onStart() {
-        mGoogleApiClient.connect();
         super.onStart();
+        mGoogleApiClient.connect();
     }
 
     @Override
@@ -107,10 +112,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
 
-        // Add a marker in Sydney and move the camera
-        LatLng sydney = new LatLng(-34, 151);
-        mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
         mMap.getUiSettings().setCompassEnabled(true);
         mMap.getUiSettings().setZoomControlsEnabled(true);
         mMap.getUiSettings().setAllGesturesEnabled(true);
@@ -137,17 +138,41 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 return true;
             case R.id.save:
                 Log.v(TAG, "Select Save");
-//                saveDrawing();
+                saveDrawing();
                 return true;
             case R.id.share:
                 Log.v(TAG, "Select Share");
                 //instantiate the ShareActionProvider for share
                 mShareActionProvider = (ShareActionProvider) MenuItemCompat.getActionProvider(item);
-//                handleShareFile(null);
+                shareDrawing();
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
+
+    //handles the sharing of the file using the ShareActionProvider
+    public void shareDrawing(){
+        Log.v(TAG, "Share button clicked");
+
+        Uri fileUri;
+
+        File dir = this.getExternalFilesDir(null);
+        File file = new File(dir, "drawing.geojson");
+
+        fileUri = Uri.fromFile(file);
+        Log.v(TAG, "File is at: " + fileUri);
+
+        //we can share a file by using intent with Extra
+        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+        shareIntent.setType("text/plain"); //set the type of intent
+        shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
+
+        Toast.makeText(this,
+                "Sharing File",
+                Toast.LENGTH_SHORT).show();
+
+        mShareActionProvider.setShareIntent(shareIntent);
     }
 
     public void setDrawingColor() {
@@ -181,6 +206,42 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .show();
 
     }
+    //save the drawing on the map into a .geojson file
+    public void saveDrawing(){
+        Log.v(TAG, "Saving the drawing");
+
+        if (penDown == true) {
+            lineShape.add(mPolyline);
+        }
+
+        //check if the external storage is accessible
+        if(isExternalStorageWritable()){
+            try {
+                File file = new File(this.getExternalFilesDir(null), "drawing.geojson");
+                FileOutputStream outputStream = new FileOutputStream(file);
+                GeoJsonConverter geoJsonConverter = new GeoJsonConverter();
+                String geoJsonString = geoJsonConverter.convertToGeoJson(lineShape);
+                outputStream.write(geoJsonString.getBytes());
+                Log.v(TAG, "Geo JSON String: " + geoJsonString);
+                outputStream.close();
+                Log.v(TAG, "Drawing Saved");
+                Toast.makeText(this,
+                        "Drawing Saved",
+                        Toast.LENGTH_SHORT).show();
+            } catch (IOException ioe) {
+                ioe.printStackTrace();
+            }
+        }
+    }
+
+    // Checks if the external storage is writable
+    public boolean isExternalStorageWritable() {
+        String state = Environment.getExternalStorageState();
+        if (Environment.MEDIA_MOUNTED.equals(state)) {
+            return true;
+        }
+        return false;
+    }
 
     //Change the state of the pen, allow user to either draw or not draw on the map
     public void togglePen(MenuItem item){
@@ -193,7 +254,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Toast.makeText(this, "Start Drawing", Toast.LENGTH_SHORT).show();
         }
         penDown = !penDown; //toggle the pen
-}
+    }
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
@@ -250,6 +311,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             List<LatLng> points = mPolyline.getPoints();
             points.add(newPoint);
             mPolyline.setPoints(points);
+            mPolyline.setColor(drawingColor);
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(newPoint, 17));
         }
     }
