@@ -141,8 +141,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     protected void onStop() {
         mGoogleApiClient.disconnect();
-        lineShape.add(mPolyline);
         if (lineShape != null && lineShape.size() > 1) {
+            lineShape.add(mPolyline);
             String geoJsonString = GeoJsonConverter.convertToGeoJson(lineShape);
             new SaveState().execute(geoJsonString);
         }
