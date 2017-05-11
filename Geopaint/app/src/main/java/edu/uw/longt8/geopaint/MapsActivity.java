@@ -79,7 +79,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         setContentView(R.layout.activity_maps);
 
         penDown = false;
-        lineShape = new ArrayList<Polyline>();
+        lineShape = new ArrayList<>();
         fileName = DEFAULT_FILE_NAME;
         sharedPref = this.getPreferences(Context.MODE_PRIVATE);
 
@@ -126,9 +126,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             if (geoJson != null) {
                 List<PolylineOptions> lines = GeoJsonConverter.convertFromGeoJson(geoJson);
                 Log.v(TAG, lines.toString());
-//            for (PolylineOptions line : lines) {
-//                mMap.addPolyline(line);
-//            }
+                if (mMap != null) {
+                    for (PolylineOptions line : lines) {
+                        mPolyline = mMap.addPolyline(line);
+                        lineShape.add(mPolyline);
+                    }
+                }
             }
         } catch (JSONException e) {
             Log.e(TAG, e.toString());
