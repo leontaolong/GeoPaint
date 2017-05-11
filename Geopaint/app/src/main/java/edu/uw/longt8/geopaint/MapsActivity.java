@@ -71,7 +71,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     List<Polyline> lineShape;
     private int drawingColor;
     private String fileName;
-    private SharedPreferengit ces sharedPref;
+    private SharedPreferences sharedPref;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -139,8 +139,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onStop() {
         mGoogleApiClient.disconnect();
         lineShape.add(mPolyline);
-        String geoJsonString = GeoJsonConverter.convertToGeoJson(lineShape);
-        new SaveState().execute(geoJsonString);
+        if (lineShape != null && lineShape.size() > 1) {
+            String geoJsonString = GeoJsonConverter.convertToGeoJson(lineShape);
+            new SaveState().execute(geoJsonString);
+        }
         super.onStop();
     }
 
