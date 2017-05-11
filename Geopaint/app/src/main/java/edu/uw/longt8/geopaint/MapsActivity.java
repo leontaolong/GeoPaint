@@ -1,8 +1,10 @@
 package edu.uw.longt8.geopaint;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.net.Uri;
@@ -56,11 +58,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private ShareActionProvider mShareActionProvider;
     private static final int LOCATION_REQUEST_CODE = 0;
     private static final String DEFAULT_FILE_NAME = "drawing.geojson";
+    private static final int DEFAULT_DRAWING_COLOR = -1;
     private boolean penDown;
     private Polyline mPolyline;
     List<Polyline> lineShape;
     private int drawingColor;
     private String fileName;
+    private SharedPreferences sharedPref;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,9 +72,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         setContentView(R.layout.activity_maps);
 
         penDown = false;
-        drawingColor = -1;
         lineShape = new ArrayList<Polyline>();
         fileName = DEFAULT_FILE_NAME;
+        sharedPref = this.getPreferences(Context.MODE_PRIVATE);
+
+        drawingColor = sharedPref.getInt("drawingColor", DEFAULT_DRAWING_COLOR);
+
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -179,13 +186,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         ColorPickerDialogBuilder
                 .with(this)
                 .setTitle("Choose color")
-                .initialColor(-1)
+                .initialColor(drawingColor)
                 .wheelType(ColorPickerView.WHEEL_TYPE.FLOWER)
                 .density(10)
                 .setOnColorSelectedListener(new OnColorSelectedListener() {
                     @Override
                     public void onColorSelected(int selectedColor) {
-                        Toast.makeText(MapsActivity.this, "Color Selected: 0x" + Integer.toHexString(selectedColor), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MapsActivity.this, "Color Selected: " + Integer.toHexString(selectedColor), Toast.LENGTH_SHORT).show();
                         Log.v(TAG, "onColorSelected: " + Integer.toHexString(selectedColor));
                     }
                 })
@@ -193,7 +200,20 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     @Override
                     public void onClick(DialogInterface dialog, int selectedColor, Integer[] allColors) {
                         drawingColor = selectedColor;
+                        SharedPreferences.Editor editor = sharedPref.edit();
+                        editor.putInt("drawingColor", drawingColor);
+                        editor.commit();
                         Log.v(TAG, "drawingColor set to: " + Integer.toHexString(selectedColor));
+                        lineShape.add(mPolyline);
+                        mPolyline = null; //reset the current polyline
+                        int permissionCheck = ContextCompat.checkSelfPermission(MapsActivity.this, Manifest.permission.ACCESS_FINE_LOCATION);
+                        if(permissionCheck == PackageManager.PERMISSION_GRANTED) {
+                            Location currentLoc = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+                            LatLng newPoint = new LatLng(currentLoc.getLatitude(), currentLoc.getLongitude()); //get the current lat/lng
+                            draw(newPoint);
+                        } else {
+                            ActivityCompat.requestPermissions(MapsActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_REQUEST_CODE);
+                        }
                     }
                 })
                 .setNegativeButton("cancel", new DialogInterface.OnClickListener() {
